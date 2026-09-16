@@ -632,6 +632,31 @@ body {
   background: #e5484d;
 }
 
+/* Weight-download progress. Determinate only: an indeterminate bar would say
+   no more than the pulsing status dot already does. */
+.model-progress {
+  margin-top: 10px;
+  height: 4px;
+  border-radius: 2px;
+  /* `--border` rather than a dimmed `--text-secondary`: opacity here would
+     cascade into the fill and mute it too. Tracks both colour schemes. */
+  background: var(--border);
+  overflow: hidden;
+}
+
+.model-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #ff9800;
+  transition: width 0.4s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-progress-fill {
+    transition: none;
+  }
+}
+
 /* ── Supported Models list ─────────────────────────────────────────────── */
 
 .model-list-row {

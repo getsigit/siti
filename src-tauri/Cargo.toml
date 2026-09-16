@@ -65,5 +65,9 @@ strip = false
 # ── Local Onde SDK development ─────────────────────────────────────────────────
 # Uncomment to build Siti against a local checkout of the Onde engine (sibling
 # directory) instead of the published crate. Keep this commented on `main`.
-# [patch.crates-io]
-# onde = { path = "../../onde" }
+#
+# Enabled on this branch: the UQFF models added to Siti (Qwen 3 family) require
+# onde's `load_uqff_model` API, which is not in the published `onde 1.2.2` crate
+# yet. Revert to the crates.io version (or bump `onde`) once that release ships.
+[patch.crates-io]
+onde = { path = "../../onde" }

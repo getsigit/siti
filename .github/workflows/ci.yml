@@ -37,6 +37,22 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      # This branch builds against Onde's main branch: `load_uqff_model` is not
+      # in the published `onde` crate yet, so src-tauri/Cargo.toml patches the
+      # dependency to a sibling checkout (`../../onde`). A runner has no such
+      # sibling, so cargo fails to even load the manifest — clone it to the
+      # path the patch expects. Cargo.lock pins the resolved graph, so
+      # `cargo build --locked` still validates normally.
+      #
+      # Delete this step together with the [patch.crates-io] block in
+      # src-tauri/Cargo.toml once onde publishes a release carrying UQFF.
+      - name: Check out the Onde engine as a sibling checkout
+        run: |
+          git clone --depth 1 \
+            --branch main \
+            https://github.com/ondeinference/onde.git \
+            "${{ github.workspace }}/../onde"
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
