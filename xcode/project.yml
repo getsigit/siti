@@ -7,14 +7,17 @@ options:
   generateEmptyDirectories: false
   createIntermediateGroups: false
 
-# Onde is normally consumed from its published releases, same as the Rust
-# side pins `onde = "1.1"` from crates.io in src-tauri/Cargo.toml. To develop
-# against a local sibling `onde-swift` checkout instead, point this at a
-# `path:` the same way src-tauri's `[patch.crates-io]` block does.
+# Ed Swift bundles the Onde inference engine, the same one the Rust side
+# reaches through `ed-agent` in src-tauri/Cargo.toml. Until Ed Swift 1.1.0 is
+# released the package is taken by path from a sibling checkout, the same way
+# src-tauri's `[patch.crates-io]` block points at onde-ed. After the release,
+# switch to:
+#   Ed:
+#     url: https://github.com/ondeinference/ed-swift
+#     from: 1.1.0
 packages:
-  Onde:
-    url: https://github.com/ondeinference/onde-swift
-    from: 1.2.2
+  Ed:
+    path: ../../onde-ed-swift
 
 schemes:
   SitiVision:
@@ -48,8 +51,8 @@ targets:
         com.apple.security.application-groups:
           - group.com.ondeinference.apps
     dependencies:
-      - package: Onde
-        product: Onde
+      - package: Ed
+        product: Ed
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ai.siti.Siti

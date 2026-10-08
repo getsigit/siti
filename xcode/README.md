@@ -1,8 +1,8 @@
 # Siti AI — visionOS app
 
-A native SwiftUI chat app for visionOS, built directly on the [`onde-swift`](https://github.com/ondeinference/onde-swift) SDK — the same on-device inference engine that powers the Tauri app at the repo root. This is a separate native client, not a Tauri build target; Tauri does not support visionOS.
+A native SwiftUI chat app for visionOS, built on [Ed Swift](https://github.com/ondeinference/ed-swift), the agent SDK over the same on-device Onde inference engine that powers the Tauri app at the repo root (through `ed-agent`). This is a separate native client, not a Tauri build target; Tauri does not support visionOS.
 
-Project layout and build-target conventions (window sizing, `xros`/`xrsimulator` platform settings, App Group entitlements, solid-image-stack app icon) follow the `SplitFireAIVision` target in the sibling `splitfire` repo (`../splitfire/frontend/xcode/splitfire/SplitFireAI.xcodeproj`). The chat engine wiring (streaming bridge, model lifecycle, conversation persistence) follows `onde-swift`'s own `Examples/OndeExample` app.
+Project layout and build-target conventions (window sizing, `xros`/`xrsimulator` platform settings, App Group entitlements, solid-image-stack app icon) follow the `SplitFireAIVision` target in the sibling `splitfire` repo (`../splitfire/frontend/xcode/splitfire/SplitFireAI.xcodeproj`). The chat engine wiring (streaming bridge, model lifecycle, conversation persistence) uses Ed's `stream`, `load(gguf:)` and `restoreHistory`.
 
 ## Setup
 
@@ -22,29 +22,30 @@ open SitiVision.xcodeproj
 
 Set your development team under Signing & Capabilities (defaults to `2TQF86ZACD`, the same team as the Tauri app's iOS build — see `../src-tauri/tauri.conf.json`), pick a Vision Pro simulator or device, hit Run.
 
-### Developing against a local `onde-swift` checkout
+### Local Ed Swift checkout
 
-By default `project.yml` pulls `Onde` from the published `onde-swift` releases (`from: 1.1.0`), the same way `src-tauri/Cargo.toml` pins `onde = "1.1"` from crates.io. To iterate against a sibling `onde-swift` checkout instead — e.g. while adding a new SDK method — point the package at a local path the same way the Rust side's `[patch.crates-io]` block does:
+Until Ed Swift 1.1.0 is released, `project.yml` takes the `Ed` package by path from a sibling `onde-ed-swift` checkout (`../../onde-ed-swift`), the way `src-tauri/Cargo.toml` patches `ed-agent` to a sibling `onde-ed`. After the release, switch it to the published package:
 
 ```yaml
 packages:
-  Onde:
-    path: ../../onde-swift
+  Ed:
+    url: https://github.com/ondeinference/ed-swift
+    from: 1.1.0
 ```
 
-Then, from that `onde-swift` checkout, build the visionOS slice before regenerating:
+To build the visionOS slice of the local checkout, run this in `onde-ed-swift`:
 
 ```
 make visionos
 ```
 
-`make visionos` needs the sibling `onde` Rust crate checked out next to `onde-swift` (`ONDE_REPO` defaults to `../onde`) and a nightly Rust toolchain with `-Z build-std`, since visionOS is a tier-3 target.
+`make visionos` needs the sibling `onde-ed` Rust workspace (`ED_REPO` defaults to `../onde-ed`) and a nightly Rust toolchain with `-Z build-std`, since visionOS is a tier-3 target.
 
 ## What it does
 
 On first launch, it downloads and loads the platform-default model (Qwen 2.5 3B on visionOS, same tier as macOS) and streams replies token-by-token. Conversations persist locally between launches. The model cache lives in the shared `group.com.ondeinference.apps` App Group, so a model already downloaded by the Tauri macOS/iOS build of Siti is reused here instead of being fetched twice.
 
-Current MVP feature set (mirrors `onde-swift`'s example app, reskinned for Siti):
+Current MVP feature set:
 
 - token-by-token streaming with a stop button
 - local conversation persistence between launches
