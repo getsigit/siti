@@ -24,7 +24,8 @@ export interface ModelInfo {
   is_selected: boolean;
 }
 
-export interface ChatStatusResponse {
+/** Snapshot of the engine, from `chat_get_status` (Ed's `EngineInfo`). */
+export interface EngineInfo {
   status: ChatStatus;
   model_name: string | null;
   approx_memory: string | null;
@@ -37,14 +38,25 @@ export interface ChatStatusPayload {
   error: string | null;
 }
 
+/** `chat_reply`: the whole reply once generation ends. `id` matches the
+ * `chat_text_delta` events of the same turn. */
 export interface ChatReplyPayload {
+  id: string;
+  session: string;
   reply: string | null;
   duration: string | null;
   error: string | null;
 }
 
+/** `chat_text_delta`: one piece of the reply as it is generated. */
+export interface ChatTextDeltaPayload {
+  id: string;
+  session: string;
+  delta: string;
+}
+
 export interface ChatMessagePayload {
-  role: "user" | "assistant";
+  role: "system" | "user" | "assistant";
   content: string;
 }
 
@@ -61,12 +73,13 @@ export const removeModel = (modelId: string) =>
 export const sendMessage = (message: string) =>
   invoke<void>("chat_send_message", { message });
 
-export const getStatus = () => invoke<ChatStatusResponse>("chat_get_status");
+export const getStatus = () => invoke<EngineInfo>("chat_get_status");
 
 export const getHistory = () =>
   invoke<ChatMessagePayload[]>("chat_get_history");
 
-export const clearHistory = () => invoke<void>("chat_clear_history");
+/** Resolves to how many messages were dropped. */
+export const clearHistory = () => invoke<number>("chat_clear_history");
 
 // ── App metadata ──────────────────────────────────────────────────────────
 
@@ -84,6 +97,11 @@ export const onStatusChanged = (cb: (p: ChatStatusPayload) => void): Promise<Unl
 
 export const onReply = (cb: (p: ChatReplyPayload) => void): Promise<UnlistenFn> =>
   listen<ChatReplyPayload>("chat_reply", (e) => cb(e.payload));
+
+export const onTextDelta = (
+  cb: (p: ChatTextDeltaPayload) => void
+): Promise<UnlistenFn> =>
+  listen<ChatTextDeltaPayload>("chat_text_delta", (e) => cb(e.payload));
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
