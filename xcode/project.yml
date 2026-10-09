@@ -8,16 +8,11 @@ options:
   createIntermediateGroups: false
 
 # Ed Swift bundles the Onde inference engine, the same one the Rust side
-# reaches through `ed-agent` in src-tauri/Cargo.toml. Until Ed Swift 1.1.0 is
-# released the package is taken by path from a sibling checkout, the same way
-# src-tauri's `[patch.crates-io]` block points at onde-ed. After the release,
-# switch to:
-#   Ed:
-#     url: https://github.com/ondeinference/ed-swift
-#     from: 1.1.0
+# reaches through `ed-agent` in src-tauri/Cargo.toml.
 packages:
   Ed:
-    path: ../../onde-ed-swift
+    url: https://github.com/ondeinference/ed-swift
+    from: 1.1.0
 
 schemes:
   SitiVision:

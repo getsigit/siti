@@ -22,24 +22,17 @@ open SitiVision.xcodeproj
 
 Set your development team under Signing & Capabilities (defaults to `2TQF86ZACD`, the same team as the Tauri app's iOS build — see `../src-tauri/tauri.conf.json`), pick a Vision Pro simulator or device, hit Run.
 
-### Local Ed Swift checkout
+### Developing against a local Ed Swift checkout
 
-Until Ed Swift 1.1.0 is released, `project.yml` takes the `Ed` package by path from a sibling `onde-ed-swift` checkout (`../../onde-ed-swift`), the way `src-tauri/Cargo.toml` patches `ed-agent` to a sibling `onde-ed`. After the release, switch it to the published package:
+`project.yml` pulls `Ed` from the published [ed-swift](https://github.com/ondeinference/ed-swift) releases (`from: 1.1.0`), the same way `src-tauri/Cargo.toml` pins `ed-agent` from crates.io. To try an unreleased change, point the package at a sibling `onde-ed-swift` checkout instead:
 
 ```yaml
 packages:
   Ed:
-    url: https://github.com/ondeinference/ed-swift
-    from: 1.1.0
+    path: ../../onde-ed-swift
 ```
 
-To build the visionOS slice of the local checkout, run this in `onde-ed-swift`:
-
-```
-make visionos
-```
-
-`make visionos` needs the sibling `onde-ed` Rust workspace (`ED_REPO` defaults to `../onde-ed`) and a nightly Rust toolchain with `-Z build-std`, since visionOS is a tier-3 target.
+Then build the visionOS slice in that checkout with `make visionos`. It needs the sibling `onde-ed` Rust workspace (`ED_REPO` defaults to `../onde-ed`) and a nightly Rust toolchain with `-Z build-std`, since visionOS is a tier-3 target.
 
 ## What it does
 
