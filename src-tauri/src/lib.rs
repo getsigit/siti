@@ -11,9 +11,12 @@ pub mod inference {
 
 use app_info::app_build_version;
 use chat::{
-    chat_clear_history, chat_get_history, chat_get_status, chat_list_models, chat_load_model,
-    chat_remove_model, chat_send_message, chat_set_model, chat_unload_model,
+    chat_list_models, chat_load_model, chat_remove_model, chat_send_message, chat_set_model,
+    chat_unload_model,
 };
+use ed_agent::Ed;
+use ed_agent_tauri::{EdState, TauriSink};
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -38,16 +41,25 @@ pub fn run() {
             // Disable telemetry + redirect the model cache into the shared
             // App Group container. Must run before any onde / hf-hub code.
             setup::setup(app)?;
+
+            // Ed owns the engine; it reports status, text deltas and replies
+            // to the webview through `TauriSink`. Created after `setup` so the
+            // pulse switch and cache redirect are in place first.
+            app.manage(EdState::new(Ed::with_sink(TauriSink::new(
+                app.handle().clone(),
+            ))));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             // Chat commands: fully on-device LLM inference
             chat_load_model,
             chat_unload_model,
-            chat_get_status,
             chat_send_message,
-            chat_clear_history,
-            chat_get_history,
+            // Status and history come straight from the SDK. The command macros
+            // need the full path.
+            ed_agent_tauri::chat_get_status,
+            ed_agent_tauri::chat_clear_history,
+            ed_agent_tauri::chat_get_history,
             chat_list_models,
             chat_set_model,
             chat_remove_model,

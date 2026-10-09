@@ -12,6 +12,7 @@ import {
   getHistory,
   onStatusChanged,
   onReply,
+  onTextDelta,
 } from "./api";
 
 type Role = "user" | "assistant";
@@ -78,6 +79,9 @@ export default function App() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Backend present? false when running in a plain browser (vite preview).
   const backendRef = useRef(true);
+  // Message id of the assistant bubble being filled by `chat_text_delta`
+  // events, or null when no reply is streaming.
+  const streamingRef = useRef<number | null>(null);
 
   const refreshModels = useCallback(async () => {
     try {
@@ -91,6 +95,7 @@ export default function App() {
   useEffect(() => {
     let unStatus: (() => void) | undefined;
     let unReply: (() => void) | undefined;
+    let unDelta: (() => void) | undefined;
 
     (async () => {
       try {
@@ -99,9 +104,12 @@ export default function App() {
         setStatusModel(s.model_name);
 
         const history = await getHistory();
-        if (history.length) {
+        const visible = history.filter(
+          (m): m is typeof m & { role: Role } => m.role !== "system"
+        );
+        if (visible.length) {
           setMessages(
-            history.map((m) => ({
+            visible.map((m) => ({
               id: nextId++,
               role: m.role,
               text: m.content,
@@ -120,21 +128,40 @@ export default function App() {
           setStatusError(p.error);
           if (p.status === "ready" || p.status === "error") refreshModels();
         });
+        unDelta = await onTextDelta((p) => {
+          // The first delta ends the typing indicator and opens the bubble.
+          setThinking(false);
+          if (streamingRef.current === null) {
+            const id = nextId++;
+            streamingRef.current = id;
+            setMessages((prev) => [
+              ...prev,
+              { id, role: "assistant", text: p.delta },
+            ]);
+          } else {
+            const id = streamingRef.current;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === id ? { ...m, text: m.text + p.delta } : m
+              )
+            );
+          }
+        });
         unReply = await onReply((p) => {
           setThinking(false);
-          if (p.reply) {
+          const text = p.reply ?? (p.error ? `⚠️ ${p.error}` : null);
+          const streamed = streamingRef.current;
+          streamingRef.current = null;
+          if (text === null) return;
+          if (streamed !== null) {
+            // The streamed bubble becomes the final text (or the error).
+            setMessages((prev) =>
+              prev.map((m) => (m.id === streamed ? { ...m, text } : m))
+            );
+          } else {
             setMessages((prev) => [
               ...prev,
-              { id: nextId++, role: "assistant", text: p.reply as string },
-            ]);
-          } else if (p.error) {
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: nextId++,
-                role: "assistant",
-                text: `⚠️ ${p.error}`,
-              },
+              { id: nextId++, role: "assistant", text },
             ]);
           }
         });
@@ -146,6 +173,7 @@ export default function App() {
     return () => {
       unStatus?.();
       unReply?.();
+      unDelta?.();
     };
   }, [refreshModels]);
 

@@ -4,17 +4,16 @@
 //! the cached engine instance, model/sampling configuration, and helpers are
 //! kept here in `mod.rs` so every command file can `use super::*`.
 //!
-//! Model loading, inference, and history management are delegated to
-//! [`onde::inference::ChatEngine`], the shared on-device inference engine
-//! from the `onde` crate.  Siti runs the engine **fully offline**: it loads
+//! Model loading, inference, history and streaming are delegated to
+//! [`ed_agent::Ed`], the agent SDK over the shared on-device inference engine
+//! from the `onde` crate. Ed lives in a managed [`EdState`] and reports to the
+//! webview through `ed-agent-tauri`'s events.  Siti runs the engine **fully
+//! offline**: it loads
 //! the platform-default GGUF model directly (no operator-assigned model, no
 //! app credentials) and pulse telemetry is disabled during app setup.
 
 // ── Command submodules (one Tauri command per file) ──────────────────────────
 
-pub mod command_clear_history;
-pub mod command_get_history;
-pub mod command_get_status;
 pub mod command_list_models;
 pub mod command_load_model;
 pub mod command_remove_model;
@@ -24,9 +23,6 @@ pub mod command_unload_model;
 
 // ── Re-exports so lib.rs can pull in commands with a flat path ───────────────
 
-pub use command_clear_history::chat_clear_history;
-pub use command_get_history::chat_get_history;
-pub use command_get_status::chat_get_status;
 pub use command_list_models::chat_list_models;
 pub use command_load_model::chat_load_model;
 pub use command_remove_model::chat_remove_model;
@@ -36,10 +32,7 @@ pub use command_unload_model::chat_unload_model;
 
 // ── Imports shared with submodules via `super::` ─────────────────────────────
 
-use {
-    crate::constants::ChatStatus,
-    serde::{Deserialize, Serialize},
-};
+use serde::{Deserialize, Serialize};
 
 #[cfg(any(
     target_os = "macos",
@@ -48,11 +41,9 @@ use {
     target_os = "windows"
 ))]
 use {
-    crate::events::{EVENT_CHAT_REPLY, EVENT_CHAT_STATUS_CHANGED},
-    log::error,
+    ed_agent::{Ed, GgufModelConfig, InferenceError, SamplingConfig},
+    ed_agent_tauri::TauriSink,
     once_cell::sync::Lazy,
-    onde::inference::{ChatEngine, GgufModelConfig, InferenceError, SamplingConfig},
-    tauri::{AppHandle, Emitter},
 };
 
 // `IsqModelConfig` and the ISQ load path only exist on macOS (Metal). Gemma is
@@ -61,45 +52,6 @@ use {
 use onde::inference::IsqModelConfig;
 
 // ── Response / payload types ─────────────────────────────────────────────────
-
-/// Payload emitted with the `chat_status_changed` event.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatStatusPayload {
-    pub status: ChatStatus,
-    pub model_name: Option<String>,
-    pub error: Option<String>,
-}
-
-/// A single message in the conversation, returned to the frontend.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatMessagePayload {
-    pub role: String,
-    pub content: String,
-}
-
-/// Event payload emitted as `chat_reply` once inference completes.
-///
-/// Using an event instead of a blocking command return prevents the WebView
-/// from garbage-collecting the JS invoke-callback before the slow on-device
-/// inference finishes.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatReplyPayload {
-    /// The assistant's reply text, or `None` on error.
-    pub reply: Option<String>,
-    /// Human-readable inference duration, or `None` on error.
-    pub duration: Option<String>,
-    /// Error message if inference failed, or `None` on success.
-    pub error: Option<String>,
-}
-
-/// Response returned by `chat_get_status`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChatStatusResponse {
-    pub status: ChatStatus,
-    pub model_name: Option<String>,
-    pub approx_memory: Option<String>,
-    pub history_length: usize,
-}
 
 /// A selectable on-device model, returned by `chat_list_models` and rendered
 /// in the Settings model dropdown.
@@ -123,18 +75,12 @@ pub struct ModelInfo {
     pub is_selected: bool,
 }
 
-// ── Shared ChatEngine instance ───────────────────────────────────────────────
+// ── The agent ────────────────────────────────────────────────────────────────
 //
-// `ChatEngine` from `onde` handles all model lifecycle, history, and inference.
-// It is `Send + Sync` and manages its own internal mutex.
-
-#[cfg(any(
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "android",
-    target_os = "windows"
-))]
-pub(crate) static ENGINE: Lazy<ChatEngine> = Lazy::new(ChatEngine::new);
+// One `Ed<TauriSink>` lives in managed `EdState` (see `lib.rs`). Ed owns the
+// `ChatEngine`, reports load transitions as `chat_status_changed`, streams
+// tokens as `chat_text_delta` and delivers replies as `chat_reply`. Commands
+// reach it through `State<EdState>`.
 
 // ── Model selection & configuration ──────────────────────────────────────────
 //
@@ -286,17 +232,24 @@ impl ResolvedModel {
         }
     }
 
-    /// Load the resolved model into the shared [`ENGINE`], dispatching to the
-    /// GGUF or ISQ load path as appropriate.
+    /// Load the resolved model into `ed`, dispatching to the GGUF or ISQ load
+    /// path as appropriate. Ed reports `Loading` then `Ready` or `Error`.
     pub(crate) async fn load(
         self,
+        ed: &Ed<TauriSink>,
         system_prompt: Option<String>,
         sampling: Option<SamplingConfig>,
     ) -> Result<std::time::Duration, InferenceError> {
         match self {
-            ResolvedModel::Gguf(c) => ENGINE.load_gguf_model(c, system_prompt, sampling).await,
+            ResolvedModel::Gguf(c) => ed.load(c, system_prompt, sampling).await,
             #[cfg(target_os = "macos")]
-            ResolvedModel::Isq(c) => ENGINE.load_isq_model(c, system_prompt, sampling).await,
+            ResolvedModel::Isq(c) => {
+                let name = c.display_name.clone();
+                ed.load_with(&name, |engine| {
+                    engine.load_isq_model(c, system_prompt, sampling)
+                })
+                .await
+            }
         }
     }
 }
@@ -467,28 +420,5 @@ pub(crate) fn fmt_duration(d: std::time::Duration) -> String {
         format!("{}m {:.1}s", mins, secs)
     } else {
         format!("{:.1}s", secs)
-    }
-}
-
-/// Emit a chat status event to the frontend.
-#[cfg(any(
-    target_os = "macos",
-    target_os = "ios",
-    target_os = "android",
-    target_os = "windows"
-))]
-pub(crate) fn emit_chat_status(
-    app: &AppHandle,
-    status: ChatStatus,
-    model_name: Option<&str>,
-    error_msg: Option<&str>,
-) {
-    let payload = ChatStatusPayload {
-        status,
-        model_name: model_name.map(|s| s.to_string()),
-        error: error_msg.map(|s| s.to_string()),
-    };
-    if let Err(e) = app.emit(EVENT_CHAT_STATUS_CHANGED, &payload) {
-        error!("Failed to emit chat status event: {:?}", e);
     }
 }
