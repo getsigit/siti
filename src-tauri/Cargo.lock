@@ -1834,6 +1834,8 @@ checksum = "e1d926b4d407d372f141f93bb444696142c29d32962ccbd3531117cf3aa0bfa9"
 [[package]]
 name = "ed-agent"
 version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "966d5e26e718a65b7af1f03e25f4d135689d29298b841a74f6e80325b081f236"
 dependencies = [
  "async-trait",
  "futures-core",
@@ -1848,6 +1850,8 @@ dependencies = [
 [[package]]
 name = "ed-agent-tauri"
 version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0fef8b83f247d9e567fef0555810f0ea9bfee8a971b72a40a0f1703fbb92e227"
 dependencies = [
  "async-trait",
  "ed-agent",

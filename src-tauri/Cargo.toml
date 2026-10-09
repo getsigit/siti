@@ -64,10 +64,3 @@ strip = "debuginfo"
 # thiserror_impl"). The shipped app binary stays stripped via the profile above.
 [profile.release.build-override]
 strip = false
-
-# ── Local SDK development ─────────────────────────────────────────────────────
-# Builds Siti against a sibling checkout of onde-ed until Ed 1.1.0 is on
-# crates.io. Delete this block after the release; nothing else changes.
-[patch.crates-io]
-ed-agent = { path = "../../onde-ed/crates/ed-agent" }
-ed-agent-tauri = { path = "../../onde-ed/crates/ed-agent-tauri" }
