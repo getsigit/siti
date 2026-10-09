@@ -86,10 +86,10 @@ TEAM_ID="${TEAM_ID:-2TQF86ZACD}"
 # ASC_ISSUER_ID — Issuer UUID on the same page.
 # The private key (.p8) must be present at:
 #   ~/.appstoreconnect/private_keys/AuthKey_<ASC_API_KEY>.p8  (Xcode's default), or
-#   ~/private_keys/AuthKey_<ASC_API_KEY>.p8                   (ASC_PRIVATE_KEY_PATH override)
+#   set ASC_PRIVATE_KEY_PATH to override.
 ASC_API_KEY="${ASC_API_KEY:-L84N624YQH}"
 ASC_ISSUER_ID="${ASC_ISSUER_ID:-b4e8d369-8b7d-4538-8435-643b73237575}"
-ASC_PRIVATE_KEY_PATH="${ASC_PRIVATE_KEY_PATH:-${HOME}/private_keys/AuthKey_${ASC_API_KEY}.p8}"
+ASC_PRIVATE_KEY_PATH="${ASC_PRIVATE_KEY_PATH:-${HOME}/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY}.p8}"
 
 # Re-sign identity used by the fixplist step (distribution cert for the same
 # team as TEAM_ID). Not secret — safe to commit once known.
