@@ -32,11 +32,11 @@ tokio = { version = "1", features = ["macros", "rt"] }
 # Ed, the agent SDK over the Onde inference engine: model lifecycle, history,
 # streaming and the Tauri event bridge. Published crates:
 # https://crates.io/crates/ed-agent and https://crates.io/crates/ed-agent-tauri.
-ed-agent = "1.1.0"
-ed-agent-tauri = "1.1.0"
+ed-agent = "1.2.2"
+ed-agent-tauri = "1.2.2"
 # The engine Ed wraps. Siti still reaches it directly for the Hugging Face cache
 # helpers (download checks, model removal) and the macOS ISQ load path.
-onde = "1.3.1"
+onde = "1.3.2"
 
 # Apple App Group container lookup — used to redirect the HuggingFace model
 # cache into the shared `group.com.ondeinference.apps` container.
