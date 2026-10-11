@@ -11,8 +11,8 @@ pub mod inference {
 
 use app_info::app_build_version;
 use chat::{
-    chat_list_models, chat_load_model, chat_remove_model, chat_send_message, chat_set_model,
-    chat_unload_model,
+    chat_download_progress, chat_list_models, chat_load_model, chat_remove_model,
+    chat_send_message, chat_set_model, chat_unload_model,
 };
 use ed_agent::Ed;
 use ed_agent_tauri::{EdState, TauriSink};
@@ -63,6 +63,7 @@ pub fn run() {
             chat_list_models,
             chat_set_model,
             chat_remove_model,
+            chat_download_progress,
             // App metadata
             app_build_version,
         ])

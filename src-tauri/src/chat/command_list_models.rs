@@ -64,6 +64,30 @@ pub async fn chat_list_models() -> Vec<ModelInfo> {
         })
         .collect();
 
+    // Qwen 3 UQFF models: pre-quantised (Q4K) safetensors loaded via onde's
+    // UQFF path on every inference platform. Not in onde's GGUF catalogue, so
+    // they're appended here from Siti's own `UQFF_MODELS` table. A few ~45 GB
+    // entries are marked `desktop_only` and skipped on iOS/Android, where
+    // neither the storage nor the memory budget could realistically fit them.
+    {
+        use super::UQFF_MODELS;
+        for entry in UQFF_MODELS {
+            if entry.desktop_only && !cfg!(any(target_os = "macos", target_os = "windows")) {
+                continue;
+            }
+            models.push(ModelInfo {
+                id: entry.id.to_string(),
+                name: entry.name.to_string(),
+                org: "Qwen / Alibaba".to_string(),
+                description: sanitize_description(entry.description),
+                approx_memory: entry.approx_memory.to_string(),
+                size_bytes: Some(entry.expected_size_bytes),
+                is_downloaded: is_model_downloaded(entry.id, entry.expected_size_bytes),
+                is_selected: entry.id == selected,
+            });
+        }
+    }
+
     // Gemma is not in onde's GGUF catalogue: mistral.rs's GGUF loader has no
     // Gemma architecture, so Gemma can only load via the ISQ (safetensors)
     // path, which is Metal-only. Offer it on macOS exclusively.

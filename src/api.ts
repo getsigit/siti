@@ -81,6 +81,14 @@ export const getHistory = () =>
 /** Resolves to how many messages were dropped. */
 export const clearHistory = () => invoke<number>("chat_clear_history");
 
+/**
+ * Bytes of a model's weights on disk so far, including a download still in
+ * flight. Poll while the model is loading and compare against the model's
+ * `size_bytes` to render real progress.
+ */
+export const getDownloadProgress = (modelId: string) =>
+  invoke<number>("chat_download_progress", { modelId });
+
 // ── App metadata ──────────────────────────────────────────────────────────
 
 /** Marketing version (CFBundleShortVersionString) from tauri.conf.json. */

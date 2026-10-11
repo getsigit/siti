@@ -1,6 +1,6 @@
 {
   "productName": "Siti AI",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "identifier": "ai.siti.Siti",
   "bundle": {
     "icon": ["icons/icon.icns"],
