@@ -4,7 +4,7 @@
 //
 
 import SwiftUI
-import Onde
+import Ed
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MARK: - Root view
@@ -155,7 +155,7 @@ struct ContentView: View {
 // ─────────────────────────────────────────────────────────────────────────────
 
 private struct HeaderView: View {
-    let info: EngineInfo
+    let info: EdEngineInfo
     let isLoading: Bool
     let isSending: Bool
 
@@ -202,7 +202,7 @@ private struct HeaderView: View {
 
             Spacer()
 
-            Label(info.approxMemory ?? "—", systemImage: "memorychip")
+            Label(info.approximateMemory ?? "—", systemImage: "memorychip")
             Label("\(info.historyLength) turns", systemImage: "text.bubble")
 
             Text(statusText)

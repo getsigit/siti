@@ -3,8 +3,8 @@
 //  Siti AI visionOS
 //
 
+import Ed
 import Foundation
-import Onde
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MARK: - Message model
@@ -36,96 +36,18 @@ struct Message: Identifiable, Codable, Hashable {
 }
 
 private extension Message {
-    var asChatMessage: ChatMessage {
+    var asChatMessage: EdChatMessage {
         switch role {
         case .user:
-            return userMessage(content: text)
+            return EdChatMessage(role: .user, content: text)
         case .assistant:
-            return assistantMessage(content: text)
+            return EdChatMessage(role: .assistant, content: text)
         }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MARK: - Stream bridge
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// Thread-safe bridge between the Rust callback thread and Swift concurrency.
-private final class StreamBridge: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuation: AsyncStream<String>.Continuation?
-    private var cancelled = false
-
-    func attach(_ continuation: AsyncStream<String>.Continuation) {
-        lock.lock()
-        self.continuation = continuation
-        let shouldFinish = cancelled
-        lock.unlock()
-
-        if shouldFinish {
-            continuation.finish()
-        }
-    }
-
-    func yield(_ delta: String) {
-        lock.lock()
-        guard !cancelled else {
-            lock.unlock()
-            return
-        }
-        let continuation = continuation
-        lock.unlock()
-        continuation?.yield(delta)
-    }
-
-    func finish() {
-        lock.lock()
-        let continuation = continuation
-        self.continuation = nil
-        lock.unlock()
-        continuation?.finish()
-    }
-
-    func cancel() {
-        lock.lock()
-        cancelled = true
-        let continuation = continuation
-        self.continuation = nil
-        lock.unlock()
-        continuation?.finish()
-    }
-
-    var isCancelled: Bool {
-        lock.lock()
-        let cancelled = cancelled
-        lock.unlock()
-        return cancelled
-    }
-}
-
-/// Bridges the UniFFI callback interface to an `AsyncStream<String>`.
-private final class ChunkCollector: StreamChunkListener {
-    private let bridge: StreamBridge
-
-    init(bridge: StreamBridge) {
-        self.bridge = bridge
-    }
-
-    /// Called by the Rust runtime for each streamed token.
-    /// - Returns: `true` to keep streaming, `false` to cancel.
-    func onChunk(chunk: StreamChunk) -> Bool {
-        if bridge.isCancelled {
-            return false
-        }
-
-        if chunk.done {
-            bridge.finish()
-            return false
-        }
-
-        bridge.yield(chunk.delta)
-        return !bridge.isCancelled
-    }
+private extension EdEngineInfo {
+    static let unloaded = EdEngineInfo(status: .unloaded)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -142,12 +64,7 @@ final class ChatViewModel: ObservableObject {
     @Published private(set) var isModelReady: Bool = false
     @Published private(set) var isSending: Bool = false
     @Published private(set) var loadingProgress: String = "Preparing model…"
-    @Published private(set) var engineInfo: EngineInfo = EngineInfo(
-        status: .unloaded,
-        modelName: nil,
-        approxMemory: nil,
-        historyLength: 0
-    )
+    @Published private(set) var engineInfo: EdEngineInfo = .unloaded
 
     @Published var alertError: IdentifiableError? = nil
 
@@ -155,9 +72,8 @@ final class ChatViewModel: ObservableObject {
 
     // Lazy so the Rust/UniFFI runtime isn't initialized during
     // @StateObject construction on the UIKit event-fetch thread.
-    private var engine: OndeChatEngine?
+    private var engine: EdAgent?
     private var streamingTask: Task<Void, Never>?
-    private var streamBridge: StreamBridge?
     private var didHydrateEngineHistory = false
 
     private static let persistedMessagesKey = "ai.siti.vision.messages"
@@ -166,9 +82,9 @@ final class ChatViewModel: ObservableObject {
         self.messages = Self.loadPersistedMessages()
     }
 
-    private func getOrCreateEngine() -> OndeChatEngine {
+    private func getOrCreateEngine() -> EdAgent {
         if let existing = engine { return existing }
-        let new = OndeChatEngine()
+        let new = EdAgent(appID: nil)
         engine = new
         return new
     }
@@ -221,12 +137,12 @@ final class ChatViewModel: ObservableObject {
         let normalizedPrompt = normalizedSystemPrompt(systemPrompt)
 
         if let normalizedPrompt {
-            await engine.setSystemPrompt(prompt: normalizedPrompt)
+            await engine.setSystemPrompt(normalizedPrompt)
         } else {
             await engine.clearSystemPrompt()
         }
 
-        await engine.setSampling(sampling: samplingPreset.samplingConfig)
+        await engine.setSampling(samplingPreset.samplingConfig)
         await refreshEngineInfo()
     }
 
@@ -239,12 +155,7 @@ final class ChatViewModel: ObservableObject {
             _ = await engine.clearHistory()
             await refreshEngineInfo()
         } else {
-            engineInfo = EngineInfo(
-                status: .unloaded,
-                modelName: nil,
-                approxMemory: nil,
-                historyLength: 0
-            )
+            engineInfo = .unloaded
         }
     }
 
@@ -270,10 +181,10 @@ final class ChatViewModel: ObservableObject {
     }
 
     func cancelStreaming() {
-        streamBridge?.cancel()
+        // Cancelling the task ends the `for try await` in `streamResponse`,
+        // which stops generation on the Rust side.
         streamingTask?.cancel()
         streamingTask = nil
-        streamBridge = nil
 
         if let idx = messages.indices.last, messages[idx].isStreaming {
             if messages[idx].text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -286,10 +197,10 @@ final class ChatViewModel: ObservableObject {
 
         isSending = false
         if engineInfo.status == .generating {
-            engineInfo = EngineInfo(
+            engineInfo = EdEngineInfo(
                 status: .ready,
                 modelName: engineInfo.modelName,
-                approxMemory: engineInfo.approxMemory,
+                approximateMemory: engineInfo.approximateMemory,
                 historyLength: engineInfo.historyLength
             )
         }
@@ -321,7 +232,8 @@ final class ChatViewModel: ObservableObject {
         }
 
         do {
-            let elapsed = try await getOrCreateEngine().loadDefaultModel(
+            let elapsed = try await getOrCreateEngine().load(
+                gguf: SitiDefaults.defaultModel,
                 systemPrompt: normalizedSystemPrompt(systemPrompt),
                 sampling: samplingPreset.samplingConfig
             )
@@ -341,51 +253,27 @@ final class ChatViewModel: ObservableObject {
 
     private func streamResponse(for userText: String) async {
         isSending = true
-        engineInfo = EngineInfo(
+        engineInfo = EdEngineInfo(
             status: .generating,
             modelName: engineInfo.modelName,
-            approxMemory: engineInfo.approxMemory,
+            approximateMemory: engineInfo.approximateMemory,
             historyLength: engineInfo.historyLength
         )
 
         let assistantIndex = messages.count
         messages.append(Message(role: .assistant, text: "", isStreaming: true))
 
-        let bridge = StreamBridge()
-        streamBridge = bridge
-        let listener = ChunkCollector(bridge: bridge)
-
-        let stream = AsyncStream<String> { continuation in
-            bridge.attach(continuation)
-        }
-
-        let capturedEngine = getOrCreateEngine()
-        let producer = Task.detached(priority: .userInitiated) {
-            do {
-                try await streamChatMessage(
-                    engine: capturedEngine,
-                    message: userText,
-                    listener: listener
-                )
-                bridge.finish()
-            } catch {
-                bridge.finish()
-                await MainActor.run {
-                    if !bridge.isCancelled {
-                        self.alertError = IdentifiableError(error)
-                    }
+        do {
+            for try await delta in getOrCreateEngine().stream(userText) {
+                if assistantIndex < messages.count {
+                    messages[assistantIndex].text += delta
                 }
             }
-        }
-
-        for await delta in stream {
-            guard !Task.isCancelled else { break }
-            if assistantIndex < messages.count {
-                messages[assistantIndex].text += delta
+        } catch {
+            if !Task.isCancelled {
+                alertError = IdentifiableError(error)
             }
         }
-
-        _ = await producer.result
 
         let assistantHasText = assistantIndex < messages.count &&
             !messages[assistantIndex].text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -399,7 +287,6 @@ final class ChatViewModel: ObservableObject {
         }
 
         persistMessages()
-        streamBridge = nil
         streamingTask = nil
         isSending = false
         await refreshEngineInfo()
@@ -413,23 +300,14 @@ final class ChatViewModel: ObservableObject {
         }
 
         loadingProgress = "Restoring conversation…"
-        let engine = getOrCreateEngine()
-
-        for message in messages {
-            await engine.pushHistory(message: message.asChatMessage)
-        }
+        await getOrCreateEngine().restoreHistory(messages.map(\.asChatMessage))
 
         didHydrateEngineHistory = true
     }
 
     private func refreshEngineInfo() async {
         guard let engine else {
-            engineInfo = EngineInfo(
-                status: .unloaded,
-                modelName: nil,
-                approxMemory: nil,
-                historyLength: 0
-            )
+            engineInfo = .unloaded
             return
         }
 

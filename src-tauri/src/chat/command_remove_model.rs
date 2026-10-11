@@ -4,8 +4,6 @@
 //! space. If the model being removed is the one currently loaded in memory, it
 //! is unloaded first so the engine doesn't keep a now-orphaned model resident.
 
-use tauri::AppHandle;
-
 #[cfg(any(
     target_os = "macos",
     target_os = "ios",
@@ -13,9 +11,10 @@ use tauri::AppHandle;
     target_os = "windows"
 ))]
 use {
-    super::{emit_chat_status, resolved_model_config, ENGINE, SELECTED_MODEL},
-    crate::constants::ChatStatus,
+    super::{resolved_model_config, SELECTED_MODEL},
+    ed_agent_tauri::EdState,
     log::{error, info},
+    tauri::State,
 };
 
 /// Delete the locally cached weights for `model_id` (a HuggingFace repo id from
@@ -27,7 +26,10 @@ use {
     target_os = "windows"
 ))]
 #[tauri::command]
-pub async fn chat_remove_model(app: AppHandle, model_id: String) -> Result<String, String> {
+pub async fn chat_remove_model(
+    state: State<'_, EdState>,
+    model_id: String,
+) -> Result<String, String> {
     // If we're deleting the model that's currently loaded/selected, unload it
     // first so the engine isn't left holding weights we're about to remove.
     let is_selected = SELECTED_MODEL
@@ -35,11 +37,11 @@ pub async fn chat_remove_model(app: AppHandle, model_id: String) -> Result<Strin
         .map(|g| *g == model_id)
         .unwrap_or(false);
 
-    if is_selected && ENGINE.is_loaded().await {
+    if is_selected && state.ed().is_loaded().await {
         let display_name = resolved_model_config().display_name();
-        ENGINE.unload_model().await;
+        // Ed reports the `Unloaded` transition.
+        state.ed().unload().await;
         info!("Unloaded {display_name} before removing its weights.");
-        emit_chat_status(&app, ChatStatus::Unloaded, None, None);
     }
 
     onde::hf_cache::delete_local_hf_model(model_id.clone()).map_err(|e| {
@@ -60,7 +62,7 @@ pub async fn chat_remove_model(app: AppHandle, model_id: String) -> Result<Strin
     target_os = "windows"
 )))]
 #[tauri::command]
-pub async fn chat_remove_model(_app: AppHandle, _model_id: String) -> Result<String, String> {
+pub async fn chat_remove_model(_model_id: String) -> Result<String, String> {
     log::debug!("Model management is not supported on this platform.");
     Err("Model management is not supported on this platform.".to_string())
 }

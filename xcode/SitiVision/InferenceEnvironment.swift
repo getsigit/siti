@@ -12,7 +12,7 @@ import Foundation
 /// other instead of being fetched twice. Falls back to the app's own
 /// Application Support directory if the group is unavailable.
 ///
-/// Call this once at launch, before creating an `OndeChatEngine`.
+/// Call this once at launch, before creating an `EdAgent`.
 func setupInferenceEnvironment() {
     let fm = FileManager.default
 

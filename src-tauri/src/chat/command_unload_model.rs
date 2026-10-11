@@ -1,6 +1,6 @@
 //! Tauri command `chat_unload_model`: frees the chat model from memory.
 
-use {log::debug, tauri::AppHandle};
+use log::debug;
 
 #[cfg(any(
     target_os = "macos",
@@ -8,11 +8,7 @@ use {log::debug, tauri::AppHandle};
     target_os = "android",
     target_os = "windows"
 ))]
-use {
-    super::{emit_chat_status, resolved_model_config, ENGINE},
-    crate::constants::ChatStatus,
-    log::info,
-};
+use {super::resolved_model_config, ed_agent_tauri::EdState, log::info, tauri::State};
 
 /// Unload the chat model from memory to free resources.
 #[cfg(any(
@@ -22,12 +18,12 @@ use {
     target_os = "windows"
 ))]
 #[tauri::command]
-pub async fn chat_unload_model(app: AppHandle) -> Result<String, String> {
-    if ENGINE.is_loaded().await {
+pub async fn chat_unload_model(state: State<'_, EdState>) -> Result<String, String> {
+    if state.ed().is_loaded().await {
         let display_name = resolved_model_config().display_name();
-        ENGINE.unload_model().await;
+        // Ed reports the `Unloaded` transition.
+        state.ed().unload().await;
         info!("Chat model unloaded: {}", display_name);
-        emit_chat_status(&app, ChatStatus::Unloaded, None, None);
         Ok(format!("Chat model {} unloaded.", display_name))
     } else {
         debug!("No chat model was loaded.");
@@ -42,7 +38,7 @@ pub async fn chat_unload_model(app: AppHandle) -> Result<String, String> {
     target_os = "windows"
 )))]
 #[tauri::command]
-pub async fn chat_unload_model(_app: AppHandle) -> Result<String, String> {
+pub async fn chat_unload_model() -> Result<String, String> {
     debug!("Chat model is not supported on this platform.");
     Ok("No chat model was loaded.".to_string())
 }

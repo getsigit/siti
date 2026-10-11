@@ -3,8 +3,8 @@
 //  Siti AI visionOS
 //
 
+import Ed
 import SwiftUI
-import Onde
 
 /// Mirrors `CHAT_SYSTEM_PROMPT` in `src-tauri/src/chat/mod.rs` so the native
 /// visionOS client and the Tauri desktop/mobile client present the same
@@ -19,6 +19,14 @@ enum SitiDefaults {
 
     You run locally, so you may not know about very recent events. When you are not sure, say so instead of inventing an answer.
     """
+
+    /// Qwen 2.5 3B (GGUF Q4_K_M), the default Onde picks on visionOS.
+    static let defaultModel = EdGGUFModelConfiguration(
+        modelID: "bartowski/Qwen2.5-3B-Instruct-GGUF",
+        files: ["Qwen2.5-3B-Instruct-Q4_K_M.gguf"],
+        displayName: "Qwen 2.5 3B",
+        approximateMemory: "~1.93 GB (GGUF Q4_K_M)"
+    )
 
     static let promptSuggestions: [PromptSuggestion] = [
         PromptSuggestion(
@@ -76,14 +84,16 @@ enum SamplingPreset: String, CaseIterable, Identifiable {
         }
     }
 
-    var samplingConfig: SamplingConfig {
+    /// The same three profiles Onde ships (`SamplingConfig::default`,
+    /// `deterministic` and `mobile`).
+    var samplingConfig: EdSamplingConfiguration {
         switch self {
         case .balanced:
-            return defaultSamplingConfig()
+            return EdSamplingConfiguration(temperature: 0.7, topP: 0.95, maxTokens: 512)
         case .deterministic:
-            return deterministicSamplingConfig()
+            return EdSamplingConfiguration(temperature: 0.0, maxTokens: 512)
         case .mobile:
-            return mobileSamplingConfig()
+            return EdSamplingConfiguration(temperature: 0.7, topP: 0.95, maxTokens: 128)
         }
     }
 }

@@ -29,11 +29,14 @@ serde_json = "1"
 log = "0.4"
 once_cell = "1"
 tokio = { version = "1", features = ["macros", "rt"] }
-# On-device LLM inference engine (Metal on Apple, CPU on Android).
-# Published crate: https://crates.io/crates/onde — this is the SDK Siti showcases.
-# For local SDK development, uncomment the [patch.crates-io] block at the bottom
-# of this file to build against a sibling `onde` checkout instead.
-onde = "1.2.2"
+# Ed, the agent SDK over the Onde inference engine: model lifecycle, history,
+# streaming and the Tauri event bridge. Published crates:
+# https://crates.io/crates/ed-agent and https://crates.io/crates/ed-agent-tauri.
+ed-agent = "1.2.2"
+ed-agent-tauri = "1.2.2"
+# The engine Ed wraps. Siti still reaches it directly for the Hugging Face cache
+# helpers (download checks, model removal) and the macOS ISQ load path.
+onde = "1.3.2"
 
 # Apple App Group container lookup — used to redirect the HuggingFace model
 # cache into the shared `group.com.ondeinference.apps` container.
@@ -61,13 +64,3 @@ strip = "debuginfo"
 # thiserror_impl"). The shipped app binary stays stripped via the profile above.
 [profile.release.build-override]
 strip = false
-
-# ── Local Onde SDK development ─────────────────────────────────────────────────
-# Uncomment to build Siti against a local checkout of the Onde engine (sibling
-# directory) instead of the published crate. Keep this commented on `main`.
-#
-# Enabled on this branch: the UQFF models added to Siti (Qwen 3 family) require
-# onde's `load_uqff_model` API, which is not in the published `onde 1.2.2` crate
-# yet. Revert to the crates.io version (or bump `onde`) once that release ships.
-[patch.crates-io]
-onde = { path = "../../onde" }
