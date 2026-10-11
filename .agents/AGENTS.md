@@ -83,7 +83,7 @@ Two other non-obvious constraints:
 
 ### Onde SDK development
 
-Onde is normally pulled from crates.io (`onde = "1.1"` in `src-tauri/Cargo.toml`) — no separate SDK checkout needed for day-to-day work. To develop against a local sibling `onde` checkout instead, uncomment the `[patch.crates-io]` block at the bottom of `src-tauri/Cargo.toml`. Keep that block commented on `main`.
+Onde is normally pulled from crates.io (`onde = "1.3"` in `src-tauri/Cargo.toml`) — no separate SDK checkout needed for day-to-day work. To develop against a local sibling `onde` checkout instead, uncomment the `[patch.crates-io]` block at the bottom of `src-tauri/Cargo.toml`. Keep that block commented on `main`.
 
 ### `web/` (Next.js landing site)
 
